@@ -30,11 +30,22 @@ struct test_case_iface {
     // the main dance of the second worker
     virtual void another_work() noexcept = 0;
     // say what you want to say at the end
-    virtual void report(std::ostream& os, double cpufreq_ghz) = 0;
+    virtual void report(std::ostream& os) = 0;
 };
 
 /*
- * The test just writes a data in one thread and waits for it coming in another thread
+ * The test just writes a data in one thread and waits for it coming in another thread. Where to put
+ * timestamp readers relative to store/load instructions? From practical point of view we are
+ * intersting in a duration between two time points: a) we are ready to store a data; b) we have
+ * read expected data:
+ *
+ *         T1                 T2
+ *
+ *   <-- get timestamp 1
+ *   ^   [store]
+ *   |
+ *   v                       [load]
+ *   <---------------------- get timestamp 2
  */
 class one_side_test : public test_case_iface {
 protected:
@@ -59,7 +70,7 @@ protected:
 
     void one_work() noexcept override;
     void another_work() noexcept override;
-    void report(std::ostream& os, double cpufreq_ghz) override;
+    void report(std::ostream& os) override;
 };
 
 /*
@@ -87,7 +98,10 @@ class one_side_asm_relax_branch_pred_test : public one_side_asm_test {
 
 /*
  * The test increments data many times in two threads sequentially and measures duration
- * of the whole operation
+ * of the whole operation. Results could show faster data exchange between caches comparing with
+ * other tests. This may be caused by the fact that there are no additional instructions in the test
+ * code which execute next step after getting expected data - the only instruction which waits
+ * for the data and makes a next step - is compare_exchange.
  */
 class ping_pong_test : public test_case_iface {
     static constexpr std::uint32_t s_ping_pongs = 100;
@@ -100,6 +114,6 @@ class ping_pong_test : public test_case_iface {
     void another_prepare() override {};
     void one_work() noexcept override;
     void another_work() noexcept override;
-    void report(std::ostream& os, double cpufreq_ghz) override;
+    void report(std::ostream& os) override;
 };
 

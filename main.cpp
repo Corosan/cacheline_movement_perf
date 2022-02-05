@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include <locale>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -23,15 +22,11 @@
  * Preconditions which a system this test is run on should meet:
  *   1. Isolated CPU cores dedicated for the test (throw out OS, other processes, IRQs, kernel
  *      deferred tasks, timers, etc.)
- *   2. Switch off CPU frequency scaling, turn on maximum CPU frequency for all CPU cores else
- *      timing in nanoseconds will be incorrect.
  *
  * Notes:
  *   * The implementation uses posix calls so it can't compile on OSs other than posix-based like
  *     Linux, FreeBSD, Solaris. Though there small such cases which should be simply isolate and
  *     make this code cross-compiled.
- *   * There are a number of experiments (or test modes) here, each of them gives different results
- *     unfortunately.
  *   * Initial config / command line parsing implemented using high-level c++ std library features
  *     so it's far from efficiency. But it doesn't matter as it doesn't influence on tests
  *     execution.
@@ -55,8 +50,6 @@ class test_runner {
     const unsigned short m_cpuids[2];
     std::exception_ptr m_errors[2];
     spin_latch m_start_barrier;
-
-    static double get_cpu_freq_ghz();
 public:
     explicit test_runner(unsigned short t1_cpuid, unsigned short t2_cpuid)
         : m_cpuids{t1_cpuid, t2_cpuid}, m_start_barrier{2} {
@@ -114,7 +107,7 @@ public:
 
         if (res == 0) {
             std::cout << "Test case result:" << std::endl;
-            test_case->report(std::cout, get_cpu_freq_ghz());
+            test_case->report(std::cout);
             std::cout << std::endl;
         }
 
@@ -130,36 +123,6 @@ private:
     }
 };
 
-/*
- * Tries to get CPU frequency from the first CPU description block available at /proc/cpuinfo. The
- * method is useless on systems with a few CPU cores working on possibly different frequencies or if
- * a frequency can change over time.
- */
-double test_runner::get_cpu_freq_ghz() {
-    using namespace std::string_view_literals;
-
-    std::ifstream ifs{"/proc/cpuinfo"};
-    std::string line;
-    double res = 0.0;
-
-    while (getline(ifs, line)) {
-        transform(line.begin(), line.end(), line.begin(), [](auto c){ return std::tolower(c, std::locale()); });
-        if (auto p = line.find("cpu mhz"sv); p != std::string::npos) {
-            if (p = line.find(":"sv, p); p != std::string::npos) {
-                std::istringstream is{line.substr(p + 1)};
-                is >> res;
-                if (is.bad() || is.fail())
-                    res = 0.0;
-                else
-                    res /= 1000.0;
-            }
-            break;
-        }
-    }
-
-    return res;
-}
-
 int usage(const char* basename) {
     if (auto p = std::strrchr(basename, '/'))
         basename = p + 1;
@@ -169,9 +132,7 @@ int usage(const char* basename) {
         "The program tries to calculate how long to transfer a CPU cache line\n"
         "from one CPU core to another. It can do this by using different approaches\n"
         "which could provide slightly different results. The measurement is reported\n"
-        "in number of CPU cycles (using rdtsc instruction) and in nanoseconds,\n"
-        "which is calculated from cycles based on system info about CPU clock\n"
-        "frequency.\n"
+        "in number of CPU cycles (using rdtsc instruction) and in nanoseconds.\n"
         "\n"
         "Options:\n"
         "  --t1-cpuid N - CPU ID of a CPU core a worker 1 should be bound to\n"

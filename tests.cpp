@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <numeric>
+#include <chrono>
 #include <string_view>
 
 constexpr std::size_t g_cache_line_size = 64;
@@ -38,8 +39,8 @@ inline std::uint64_t rdtsc() {
 
 inline std::uint64_t produce_and_get_cycles(std::uint32_t val) {
     std::uint64_t res;
-    asm volatile ("mov %2, %1\n"
-                  "rdtsc\n"
+    asm volatile ("rdtsc\n"
+                  "mov %2, %1\n"
                   "shl $32, %%rdx\n"
                   "or %%rdx, %0\n"
                   : "=a" (res), "=m" (g_test_data)
@@ -60,7 +61,30 @@ inline std::uint64_t consume_and_get_cycles(std::uint32_t& val) {
     return res;
 }
 
-void calc_and_print_stat(std::ostream& os, std::vector<double>& samples, double cpufreq_ghz) {
+double get_cpu_freq_ghz() {
+    using fp_seconds_t = 
+        std::chrono::duration<double, std::chrono::seconds::period>;
+
+    auto get_freq_hz = [](){
+        auto time_pt = std::chrono::high_resolution_clock::now();
+        std::uint64_t end_ts, start_ts = rdtsc();
+        do {
+            end_ts = rdtsc();
+        } while (end_ts - start_ts < 1'000'000);
+        return (end_ts - start_ts) /
+            fp_seconds_t(std::chrono::high_resolution_clock::now() - time_pt).count();
+    };
+
+    double freq_prev, freq = get_freq_hz();
+    do {
+        freq_prev = freq;
+        freq = get_freq_hz();
+    } while (std::abs(freq - freq_prev) > 1000.0);
+
+    return freq / 1'000'000'000.0;
+}
+
+void calc_and_print_stat(std::ostream& os, std::vector<double>& samples) {
     sort(samples.begin(), samples.end());
 
     // cut off edges from the samples sequence
@@ -72,21 +96,14 @@ void calc_and_print_stat(std::ostream& os, std::vector<double>& samples, double 
             / (samples.size() - 2 * edge),
         0.5);
 
-    if (cpufreq_ghz) {
-        os <<
-            "  freq, GHz    : " << cpufreq_ghz << "\n"
-            "  measures     : " << samples.size() << "\n"
-            "  cycles mean  : " << mean << " (" << mean / cpufreq_ghz << "ns)\n"
-            "  cycles rms   : " << rms << " (" << rms / cpufreq_ghz << "ns)\n"
-            "  cycles median: " << samples[samples.size() / 2] << " (" << samples[samples.size() / 2] << "ns)";
-    } else {
-        os <<
-            "  freq, GHz    : ???\n"
-            "  measures     : " << samples.size() << "\n"
-            "  cycles mean  : " << mean << "\n"
-            "  cycles rms   : " << rms << "\n"
-            "  cycles median: " << samples[samples.size() / 2];
-    }
+    const auto cpufreq_ghz = get_cpu_freq_ghz();
+
+    os <<
+        "  freq, GHz    : " << cpufreq_ghz << "\n"
+        "  measures     : " << samples.size() << "\n"
+        "  cycles mean  : " << mean << " (" << mean / cpufreq_ghz << "ns)\n"
+        "  cycles rms   : " << rms << " (" << rms / cpufreq_ghz << "ns)\n"
+        "  cycles median: " << samples[samples.size() / 2] << " (" << samples[samples.size() / 2] / cpufreq_ghz << "ns)";
 }
 
 } // ns anonymous
@@ -125,24 +142,18 @@ void one_side_test::another_work() noexcept {
     for (std::uint32_t attempt = 0; attempt < m_config.m_attempts_count; ++attempt) {
         m_continue.store(1, std::memory_order_relaxed);
 
-        do {
-            // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read
-            // before test data is checked. The logic here is to eliminate duration of the rdtsc
-            // call in average.
-            *end_cycle = rdtsc();
-        }
-        while (g_test_data.load(std::memory_order_relaxed) != data_sample);
+        while (g_test_data.load(std::memory_order_relaxed) != data_sample)
+            ;
 
-        code_barrier();
+        *end_cycle++ = rdtsc();
 
-        ++end_cycle;
         ++data_sample;
     }
 
     m_continue.store(-1);
 }
 
-void one_side_test::report(std::ostream& os, double cpufreq_ghz) {
+void one_side_test::report(std::ostream& os) {
     std::vector<double> samples;
 
     samples.reserve(m_start_cycles.size());
@@ -150,7 +161,7 @@ void one_side_test::report(std::ostream& os, double cpufreq_ghz) {
         if (m_end_cycles[i])
             samples.push_back(static_cast<double>(m_end_cycles[i]) - static_cast<double>(m_start_cycles[i]));
 
-    calc_and_print_stat(os, samples, cpufreq_ghz);
+    calc_and_print_stat(os, samples);
 }
 
 void one_side_asm_test::one_work() noexcept {
@@ -258,12 +269,12 @@ void ping_pong_test::another_work() noexcept {
     }
 }
 
-void ping_pong_test::report(std::ostream& os, double cpufreq_ghz) {
+void ping_pong_test::report(std::ostream& os) {
     std::vector<double> samples;
 
     samples.reserve(m_cycles.size());
     for (std::size_t i = 0; i < m_cycles.size(); ++i)
         samples.push_back(static_cast<double>(m_cycles[i]) / s_ping_pongs);
 
-    calc_and_print_stat(os, samples, cpufreq_ghz);
+    calc_and_print_stat(os, samples);
 }
