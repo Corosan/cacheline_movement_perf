@@ -22,41 +22,41 @@ std::atomic<std::uint32_t> g_test_data;
 char g_pad2[g_cache_line_size];
 
 inline void code_barrier() {
-    asm inline volatile ("");
+    asm volatile ("");
 }
 
 inline std::uint64_t rdtsc() {
     std::uint64_t res;
-    asm inline volatile ("rdtsc\n"
-                         "shl $32, %%rdx\n"
-                         "or %%rdx, %0\n"
-                         : "=a" (res)
-                         :
-                         : "cc", "rdx");
+    asm volatile ("rdtsc\n"
+                  "shl $32, %%rdx\n"
+                  "or %%rdx, %0\n"
+                  : "=a" (res)
+                  :
+                  : "cc", "rdx");
     return res;
 }
 
 inline std::uint64_t produce_and_get_cycles(std::uint32_t val) {
     std::uint64_t res;
-    asm inline volatile ("mov %2, %1\n"
-                         "rdtsc\n"
-                         "shl $32, %%rdx\n"
-                         "or %%rdx, %0\n"
-                         : "=a" (res), "=m" (g_test_data)
-                         : "b" (val)
-                         : "cc", "rdx");
+    asm volatile ("mov %2, %1\n"
+                  "rdtsc\n"
+                  "shl $32, %%rdx\n"
+                  "or %%rdx, %0\n"
+                  : "=a" (res), "=m" (g_test_data)
+                  : "b" (val)
+                  : "cc", "rdx");
     return res;
 }
 
 inline std::uint64_t consume_and_get_cycles(std::uint32_t& val) {
     std::uint64_t res;
-    asm inline volatile ("mov %2, %1\n"
-                         "rdtsc\n"
-                         "shl $32, %%rdx\n"
-                         "or %%rdx, %0\n"
-                         : "=a" (res), "=r" (val)
-                         : "m" (g_test_data)
-                         : "cc", "rdx");
+    asm volatile ("mov %2, %1\n"
+                  "rdtsc\n"
+                  "shl $32, %%rdx\n"
+                  "or %%rdx, %0\n"
+                  : "=a" (res), "=r" (val)
+                  : "m" (g_test_data)
+                  : "cc", "rdx");
     return res;
 }
 

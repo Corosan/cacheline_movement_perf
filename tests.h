@@ -11,7 +11,7 @@
 /*
  * A test case consists of two sequences run in separate threads bound to specified CPU cores.
  * Every sequence consists of two parts: preparation and the main part ( dance:) ). Before
- * the main part starts the runner guarantees that preparation phases for both threads are
+ * the main part will start the runner guarantees that preparation phases for both threads are
  * finished. It's done using user-space barrier.
  */
 struct test_case_iface {

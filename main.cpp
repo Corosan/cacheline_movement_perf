@@ -23,11 +23,13 @@
  * Preconditions which a system this test is run on should meet:
  *   1. Isolated CPU cores dedicated for the test (throw out OS, other processes, IRQs, kernel
  *      deferred tasks, timers, etc.)
- *   2. Switch off CPU frequency scaling, turn on maximum CPU frequency
+ *   2. Switch off CPU frequency scaling, turn on maximum CPU frequency for all CPU cores else
+ *      timing in nanoseconds will be incorrect.
  *
  * Notes:
  *   * The implementation uses posix calls so it can't compile on OSs other than posix-based like
- *     Linux, FreeBSD, Solaris.
+ *     Linux, FreeBSD, Solaris. Though there small such cases which should be simply isolate and
+ *     make this code cross-compiled.
  *   * There are a number of experiments (or test modes) here, each of them gives different results
  *     unfortunately.
  *   * Initial config / command line parsing implemented using high-level c++ std library features
@@ -60,7 +62,7 @@ public:
         : m_cpuids{t1_cpuid, t2_cpuid}, m_start_barrier{2} {
     }
 
-    // Run two threads, bind them to specified CPU cores and execute test case on them
+    // Run two threads, bind them to specified CPU cores and execute the test case on them
     int run(std::unique_ptr<test_case_iface> test_case) {
         int res = 0;
         std::thread t1{[this, &test_case](){
@@ -128,6 +130,11 @@ private:
     }
 };
 
+/*
+ * Tries to get CPU frequency from the first CPU description block available at /proc/cpuinfo. The
+ * method is useless on systems with a few CPU cores working on possibly different frequencies or if
+ * a frequency can change over time.
+ */
 double test_runner::get_cpu_freq_ghz() {
     using namespace std::string_view_literals;
 
@@ -157,12 +164,20 @@ int usage(const char* basename) {
     if (auto p = std::strrchr(basename, '/'))
         basename = p + 1;
 
-    std::cout << "Usage: " << basename << " [OPTIONS]\n\n"
+    std::cout << "Usage: " << basename << " [OPTIONS]\n"
+        "\n"
+        "The program tries to calculate how long to transfer a CPU cache line\n"
+        "from one CPU core to another. It can do this by using different approaches\n"
+        "which could provide slightly different results. The measurement is reported\n"
+        "in number of CPU cycles (using rdtsc instruction) and in nanoseconds,\n"
+        "which is calculated from cycles based on system info about CPU clock\n"
+        "frequency.\n"
+        "\n"
         "Options:\n"
         "  --t1-cpuid N - CPU ID of a CPU core a worker 1 should be bound to\n"
         "  --t2-cpuid N - CPU ID of a CPU core a worker 2 should be bound to\n"
         "  --attempts N - number of attempts for the test (default: 1000)\n"
-        "  --mode N - test mode [0-3]." << std::endl;
+        "  --mode N - test mode [0-3] (default: 0)" << std::endl;
     return 0;
 }
 
@@ -222,7 +237,7 @@ int main(int argc, const char* argv[]) {
             }
             ++i;
         } else {
-            std::cerr << "unknown option \""sv << argv[i] << "\" or there is no mandatory argument" << std::endl;
+            std::cerr << "unknown option \""sv << argv[i] << "\" or there is no mandatory argument"sv << std::endl;
             return 1;
         }
     }
