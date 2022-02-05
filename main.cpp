@@ -87,6 +87,7 @@ public:
 
         std::cout << "Test case result:" << std::endl;
         test_case->report(std::cout);
+        std::cout << std::endl;
 
         unsigned short worker_idx = 1;
         for (auto& exc_ptr : m_errors) {
@@ -123,12 +124,17 @@ int usage(const char* basename) {
         "Options:\n"
         "  --t1-cpuid N - CPU ID of a CPU core a worker 1 should be bound to\n"
         "  --t2-cpuid N - CPU ID of a CPU core a worker 2 should be bound to\n"
-        "  --mode N - test mode [0].\n\n"
+        "  --attempts N - number of attempts for the test (default: 1000)\n"
+        "  --mode N - test mode [0-2].\n\n"
         "Various test mode options can be specified only after providing --mode option\n"
-        "on the command line.\n\n"
-        "Test mode 0 options:\n";
+        "on the command line.\n\n";
 
+    std::cout << "Test mode 0 options:\n";
     one_side_test::usage(std::cout);
+    std::cout << "\nTest mode 1 options:\n";
+    one_side_asm_test::usage(std::cout);
+    std::cout << "\nTest mode 2 options:\n";
+    ping_pong_test::usage(std::cout);
 
     std::cout << std::endl;
     return 0;
@@ -138,11 +144,23 @@ int main(int argc, const char* argv[]) {
     using namespace std::string_view_literals;
 
     short cpuids[2]{-1, -1};
+    test_case_iface::config test_case_cfg;
     std::unique_ptr<test_case_iface> test_case;
+
+    if (argc == 1)
+        return usage(argv[0]);
 
     for (int i = 1; i < argc; ++i) {
         if ("--help"sv == argv[i])
             return usage(argv[0]);
+        else if ("--attempts"sv == argv[i] && i + 1 < argc) {
+            std::istringstream is{argv[++i]};
+            is >> test_case_cfg.m_attempts_count;
+            if (is.fail() || is.bad() || ! is.eof()) {
+                std::cerr << "unable to convert attempts argument into an acceptable number"sv << std::endl;
+                return 1;
+            }
+        }
         else if ("--t1-cpuid"sv == argv[i] && i + 1 < argc) {
             std::istringstream is{argv[++i]};
             unsigned short v;
@@ -166,6 +184,10 @@ int main(int argc, const char* argv[]) {
         else if ("--mode"sv == argv[i] && i + 1 < argc) {
             if ("0"sv == argv[i + 1])
                 test_case = std::make_unique<one_side_test>();
+            else if ("1"sv == argv[i + 1])
+                test_case = std::make_unique<one_side_asm_test>();
+            else if ("2"sv == argv[i + 1])
+                test_case = std::make_unique<ping_pong_test>();
             else {
                 std::cerr << "unknown test mode value"sv << std::endl;
                 return 1;
@@ -195,5 +217,6 @@ int main(int argc, const char* argv[]) {
     if (! test_case)
         test_case = std::make_unique<one_side_test>();
 
+    test_case->set_config(std::move(test_case_cfg));
     return test_runner(cpuids[0], cpuids[1]).run(std::move(test_case));
 }
