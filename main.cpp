@@ -1,3 +1,4 @@
+// vim: textwidth=100
 #include "tests.h"
 
 #include <cstddef>
@@ -127,7 +128,7 @@ int usage(const char* basename) {
         "  --t1-cpuid N - CPU ID of a CPU core a worker 1 should be bound to\n"
         "  --t2-cpuid N - CPU ID of a CPU core a worker 2 should be bound to\n"
         "  --attempts N - number of attempts for the test (default: 1000)\n"
-        "  --mode N - test mode [0-2].\n\n"
+        "  --mode N - test mode [0-3].\n\n"
         "Various test mode options can be specified only after providing --mode option\n"
         "on the command line.\n\n";
 
@@ -190,6 +191,8 @@ int main(int argc, const char* argv[]) {
                 test_case = std::make_unique<one_side_asm_test>();
             else if ("2"sv == argv[i + 1])
                 test_case = std::make_unique<ping_pong_test>();
+            else if ("3"sv == argv[i + 1])
+                test_case = std::make_unique<one_side_asm_relax_branch_pred_test>();
             else {
                 std::cerr << "unknown test mode value"sv << std::endl;
                 return 1;

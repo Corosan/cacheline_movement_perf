@@ -1,9 +1,11 @@
+// vim: textwidth=100
 #pragma once
 
 #include <cstdint>
 #include <cstddef>
 #include <atomic>
 #include <vector>
+#include <utility>
 #include <iosfwd>
 
 /*
@@ -39,6 +41,9 @@ struct test_case_iface {
     virtual void report(std::ostream& os) = 0;
 };
 
+/*
+ * The test just writes a data in one thread and waits for it coming in another thread
+ */
 class one_side_test : public test_case_iface {
 protected:
     static constexpr int s_warmup_cycles = 1000;
@@ -68,6 +73,9 @@ public:
     static void usage(std::ostream& os);
 };
 
+/*
+ * The same as previous but writing data and getting CPU tsc is made in one asm block
+ */
 class one_side_asm_test : public one_side_test {
     void one_work() noexcept override;
     void another_work() noexcept override;
@@ -75,6 +83,23 @@ public:
     static void usage(std::ostream& os);
 };
 
+class one_side_asm_relax_branch_pred_test : public one_side_asm_test {
+    static constexpr std::size_t s_samples_size = 10000;
+    std::vector<std::pair<std::uint32_t, std::uint64_t>> m_samples;
+
+    void another_prepare() override {
+        one_side_asm_test::another_prepare();
+        m_samples.resize(s_samples_size);
+    }
+    void another_work() noexcept override;
+public:
+    static void usage(std::ostream& os);
+};
+
+/*
+ * The test increments data many times in two threads sequentially and measures duration
+ * of the whole operation
+ */
 class ping_pong_test : public test_case_iface {
     static constexpr std::uint32_t s_ping_pongs = 100;
 

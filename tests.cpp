@@ -1,3 +1,4 @@
+// vim: textwidth=100
 #include "tests.h"
 
 #include <cmath>
@@ -71,6 +72,7 @@ void calc_and_print_stat(std::ostream& os, std::vector<double>& samples) {
         0.5);
 
     os <<
+        "  measures     : " << samples.size() << "\n"
         "  cycles mean  : " << mean << "\n"
         "  cycles rms   : " << rms << "\n"
         "  cycles median: " << samples[samples.size() / 2];
@@ -125,8 +127,9 @@ void one_side_test::another_work() noexcept {
         m_continue.store(1, std::memory_order_relaxed);
 
         do {
-            // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read before
-            // test data is checked. The logic here is to eliminate duration of the rdtsc call in average.
+            // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read
+            // before test data is checked. The logic here is to eliminate duration of the rdtsc
+            // call in average.
             *end_cycle = rdtsc();
         }
         while (g_test_data.load(std::memory_order_relaxed) != data_sample);
@@ -145,7 +148,8 @@ void one_side_test::report(std::ostream& os) {
 
     samples.reserve(m_start_cycles.size());
     for (std::size_t i = 0; i < m_start_cycles.size(); ++i)
-        samples.push_back(static_cast<double>(m_end_cycles[i]) - static_cast<double>(m_start_cycles[i]));
+        if (m_end_cycles[i])
+            samples.push_back(static_cast<double>(m_end_cycles[i]) - static_cast<double>(m_start_cycles[i]));
 
     calc_and_print_stat(os, samples);
 }
@@ -185,8 +189,9 @@ void one_side_asm_test::another_work() noexcept {
 
         std::uint32_t v;
         do {
-            // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read before
-            // test data is checked. The logic here is to eliminate duration of the rdtsc call in average.
+            // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read
+            // before test data is checked. The logic here is to eliminate duration of the rdtsc
+            // call in average.
             *end_cycle = consume_and_get_cycles(v);
         }
         while (v != data_sample);
@@ -199,6 +204,35 @@ void one_side_asm_test::another_work() noexcept {
 
     m_continue.store(-1);
 }
+
+void one_side_asm_relax_branch_pred_test::another_work() noexcept {
+    auto end_cycle = &m_end_cycles[0];
+    std::uint32_t data_sample = 1;
+
+    for (std::uint32_t attempt = 0; attempt < m_config.m_attempts_count; ++attempt) {
+        m_continue.store(1, std::memory_order_relaxed);
+
+        // it's possible to get [end_cycle] < [start_cycle] in rare cases because it's read before
+        // test data is checked. The logic here is to eliminate duration of the rdtsc call in
+        // average.
+        // Moreover it's possible to not find the expected test data state in case of this thread
+        // was freezed unexpectedly.
+        for (auto& sample : m_samples)
+            sample.second = consume_and_get_cycles(sample.first);
+
+        code_barrier();
+
+        if (auto it = find_if(m_samples.begin(), m_samples.end(),
+            [data_sample](auto& v){ return v.first == data_sample; }); it != m_samples.end())
+            *end_cycle = it->second;
+
+        ++end_cycle;
+        ++data_sample;
+    }
+
+    m_continue.store(-1);
+}
+
 
 void ping_pong_test::one_work() noexcept {
     for (auto& cycles_on_attempt : m_cycles) {
