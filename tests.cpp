@@ -80,18 +80,6 @@ void calc_and_print_stat(std::ostream& os, std::vector<double>& samples) {
 
 } // ns anonymous
 
-void one_side_test::usage(std::ostream& os) {
-    os << "  ---\n";
-}
-
-void one_side_asm_test::usage(std::ostream& os) {
-    os << "  ---\n";
-}
-
-void ping_pong_test::usage(std::ostream& os) {
-    os << "  ---\n";
-}
-
 void one_side_test::one_work() noexcept {
     std::int8_t cont;
     std::uint32_t data_sample = 1;

@@ -15,20 +15,12 @@
  * finished. It's done using user-space barrier.
  */
 struct test_case_iface {
-    enum class parse_args : char {
-        ok, invalid, unknown
-    };
     struct config {
         std::uint32_t m_attempts_count = 1000;
     };
 
     virtual ~test_case_iface() = default;
     virtual void set_config(const config& cfg) = 0;
-    // possibly handle additional arguments from a command line
-    virtual parse_args process_args(std::ostream& err_os, const int argc, const char** argv, int& arg_idx)
-    {
-        return parse_args::unknown;
-    }
     // preparation step for the first worker before the main dance begins
     virtual void one_prepare() = 0;
     // preparation step for the second worker before the main dance begins
@@ -56,7 +48,6 @@ protected:
     std::vector<std::uint64_t> m_end_cycles;
 
     void set_config(const config& cfg) override { m_config = cfg; }
-    //parse_args process_args(std::ostream& err_os, const int argc, const char** argv, int& arg_idx) override;
 
     void one_prepare() override {
         m_start_cycles.resize(m_config.m_attempts_count);
@@ -69,8 +60,6 @@ protected:
     void one_work() noexcept override;
     void another_work() noexcept override;
     void report(std::ostream& os) override;
-public:
-    static void usage(std::ostream& os);
 };
 
 /*
@@ -79,10 +68,12 @@ public:
 class one_side_asm_test : public one_side_test {
     void one_work() noexcept override;
     void another_work() noexcept override;
-public:
-    static void usage(std::ostream& os);
 };
 
+/*
+ * The same as previous but waiting cycle doesn't depend on expected data state.
+ * I expect it will allow branch predictor to work more smoothly executing waiting cycle.
+ */
 class one_side_asm_relax_branch_pred_test : public one_side_asm_test {
     static constexpr std::size_t s_samples_size = 10000;
     std::vector<std::pair<std::uint32_t, std::uint64_t>> m_samples;
@@ -92,8 +83,6 @@ class one_side_asm_relax_branch_pred_test : public one_side_asm_test {
         m_samples.resize(s_samples_size);
     }
     void another_work() noexcept override;
-public:
-    static void usage(std::ostream& os);
 };
 
 /*
@@ -107,17 +96,10 @@ class ping_pong_test : public test_case_iface {
     std::vector<std::uint64_t> m_cycles;
 
     void set_config(const config& cfg) override { m_config = cfg; }
-    // possibly handle additional arguments from a command line
-    virtual parse_args process_args(std::ostream& err_os, const int argc, const char** argv, int& arg_idx)
-    {
-        return parse_args::unknown;
-    }
     void one_prepare() override { m_cycles.resize(m_config.m_attempts_count); }
     void another_prepare() override {};
     void one_work() noexcept override;
     void another_work() noexcept override;
     void report(std::ostream& os) override;
-public:
-    static void usage(std::ostream& os);
 };
 

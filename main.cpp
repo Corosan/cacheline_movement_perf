@@ -123,23 +123,12 @@ int usage(const char* basename) {
     if (auto p = std::strrchr(basename, '/'))
         basename = p + 1;
 
-    std::cout << "Usage: " << basename << " [OPTIONS] [TEST MODE OPTIONS]\n\n"
+    std::cout << "Usage: " << basename << " [OPTIONS]\n\n"
         "Options:\n"
         "  --t1-cpuid N - CPU ID of a CPU core a worker 1 should be bound to\n"
         "  --t2-cpuid N - CPU ID of a CPU core a worker 2 should be bound to\n"
         "  --attempts N - number of attempts for the test (default: 1000)\n"
-        "  --mode N - test mode [0-3].\n\n"
-        "Various test mode options can be specified only after providing --mode option\n"
-        "on the command line.\n\n";
-
-    std::cout << "Test mode 0 options:\n";
-    one_side_test::usage(std::cout);
-    std::cout << "\nTest mode 1 options:\n";
-    one_side_asm_test::usage(std::cout);
-    std::cout << "\nTest mode 2 options:\n";
-    ping_pong_test::usage(std::cout);
-
-    std::cout << std::endl;
+        "  --mode N - test mode [0-3]." << std::endl;
     return 0;
 }
 
@@ -199,18 +188,8 @@ int main(int argc, const char* argv[]) {
             }
             ++i;
         } else {
-            const auto parse_res = (test_case)
-                ? test_case->process_args(std::cerr, argc, argv, i)
-                : test_case_iface::parse_args::unknown;
-            switch (parse_res) {
-            case test_case_iface::parse_args::unknown:
-                std::cerr << "unknown option \""sv << argv[i] << "\" or there is no mandatory argument" << std::endl;
-                return 1;
-            case test_case_iface::parse_args::invalid:
-                return 1;
-            default:
-                break;
-            }
+            std::cerr << "unknown option \""sv << argv[i] << "\" or there is no mandatory argument" << std::endl;
+            return 1;
         }
     }
 
