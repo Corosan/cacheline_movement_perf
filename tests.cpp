@@ -206,7 +206,7 @@ void ping_pong_test::one_work() noexcept {
         cycles_on_attempt = rdtsc();
         for (std::uint32_t i = 0; i < s_ping_pongs; ++i) {
             std::uint32_t v = i;
-            while (! g_test_data.compare_exchange_weak(v, i+1, std::memory_order_relaxed, std::memory_order_relaxed))
+            while (! g_test_data.compare_exchange_strong(v, i+1, std::memory_order_relaxed, std::memory_order_relaxed))
                 v = i;
             ++i;
         }
@@ -216,9 +216,9 @@ void ping_pong_test::one_work() noexcept {
 
 void ping_pong_test::another_work() noexcept {
     for (auto attempt = m_cycles.size(); attempt != 0; --attempt) {
-        for (std::uint32_t i = 1; i < s_ping_pongs; ++i) {
+        for (std::uint32_t i = 1; i < s_ping_pongs - 1; ++i) {
             std::uint32_t v = i;
-            while (! g_test_data.compare_exchange_weak(v, i+1, std::memory_order_relaxed, std::memory_order_relaxed))
+            while (! g_test_data.compare_exchange_strong(v, i+1, std::memory_order_relaxed, std::memory_order_relaxed))
                 v = i;
             ++i;
         }

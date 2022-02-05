@@ -85,10 +85,6 @@ public:
         t1.join();
         t2.join();
 
-        std::cout << "Test case result:" << std::endl;
-        test_case->report(std::cout);
-        std::cout << std::endl;
-
         unsigned short worker_idx = 1;
         for (auto& exc_ptr : m_errors) {
             if (exc_ptr)
@@ -102,6 +98,12 @@ public:
                     std::cerr << "unexpected error at worker " << worker_idx << std::endl;
                 }
             ++worker_idx;
+        }
+
+        if (res == 0) {
+            std::cout << "Test case result:" << std::endl;
+            test_case->report(std::cout);
+            std::cout << std::endl;
         }
 
         return res;
