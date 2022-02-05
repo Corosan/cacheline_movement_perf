@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <ostream>
+#include <iomanip>
 #include <algorithm>
 #include <numeric>
 #include <string_view>
@@ -59,7 +60,7 @@ inline std::uint64_t consume_and_get_cycles(std::uint32_t& val) {
     return res;
 }
 
-void calc_and_print_stat(std::ostream& os, std::vector<double>& samples) {
+void calc_and_print_stat(std::ostream& os, std::vector<double>& samples, double cpufreq_ghz) {
     sort(samples.begin(), samples.end());
 
     // cut off edges from the samples sequence
@@ -71,11 +72,21 @@ void calc_and_print_stat(std::ostream& os, std::vector<double>& samples) {
             / (samples.size() - 2 * edge),
         0.5);
 
-    os <<
-        "  measures     : " << samples.size() << "\n"
-        "  cycles mean  : " << mean << "\n"
-        "  cycles rms   : " << rms << "\n"
-        "  cycles median: " << samples[samples.size() / 2];
+    if (cpufreq_ghz) {
+        os <<
+            "  freq, GHz    : " << cpufreq_ghz << "\n"
+            "  measures     : " << samples.size() << "\n"
+            "  cycles mean  : " << mean << " (" << mean / cpufreq_ghz << "ns)\n"
+            "  cycles rms   : " << rms << " (" << rms / cpufreq_ghz << "ns)\n"
+            "  cycles median: " << samples[samples.size() / 2] << " (" << samples[samples.size() / 2] << "ns)";
+    } else {
+        os <<
+            "  freq, GHz    : ???\n"
+            "  measures     : " << samples.size() << "\n"
+            "  cycles mean  : " << mean << "\n"
+            "  cycles rms   : " << rms << "\n"
+            "  cycles median: " << samples[samples.size() / 2];
+    }
 }
 
 } // ns anonymous
@@ -131,7 +142,7 @@ void one_side_test::another_work() noexcept {
     m_continue.store(-1);
 }
 
-void one_side_test::report(std::ostream& os) {
+void one_side_test::report(std::ostream& os, double cpufreq_ghz) {
     std::vector<double> samples;
 
     samples.reserve(m_start_cycles.size());
@@ -139,7 +150,7 @@ void one_side_test::report(std::ostream& os) {
         if (m_end_cycles[i])
             samples.push_back(static_cast<double>(m_end_cycles[i]) - static_cast<double>(m_start_cycles[i]));
 
-    calc_and_print_stat(os, samples);
+    calc_and_print_stat(os, samples, cpufreq_ghz);
 }
 
 void one_side_asm_test::one_work() noexcept {
@@ -247,12 +258,12 @@ void ping_pong_test::another_work() noexcept {
     }
 }
 
-void ping_pong_test::report(std::ostream& os) {
+void ping_pong_test::report(std::ostream& os, double cpufreq_ghz) {
     std::vector<double> samples;
 
     samples.reserve(m_cycles.size());
     for (std::size_t i = 0; i < m_cycles.size(); ++i)
         samples.push_back(static_cast<double>(m_cycles[i]) / s_ping_pongs);
 
-    calc_and_print_stat(os, samples);
+    calc_and_print_stat(os, samples, cpufreq_ghz);
 }

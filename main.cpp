@@ -4,9 +4,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <locale>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <atomic>
+#include <algorithm>
 #include <exception>
 #include <memory>
 #include <thread>
@@ -26,6 +30,9 @@
  *     Linux, FreeBSD, Solaris.
  *   * There are a number of experiments (or test modes) here, each of them gives different results
  *     unfortunately.
+ *   * Initial config / command line parsing implemented using high-level c++ std library features
+ *     so it's far from efficiency. But it doesn't matter as it doesn't influence on tests
+ *     execution.
  */
 
 // like std::latch, but without going into kernel space
@@ -46,6 +53,8 @@ class test_runner {
     const unsigned short m_cpuids[2];
     std::exception_ptr m_errors[2];
     spin_latch m_start_barrier;
+
+    static double get_cpu_freq_ghz();
 public:
     explicit test_runner(unsigned short t1_cpuid, unsigned short t2_cpuid)
         : m_cpuids{t1_cpuid, t2_cpuid}, m_start_barrier{2} {
@@ -103,7 +112,7 @@ public:
 
         if (res == 0) {
             std::cout << "Test case result:" << std::endl;
-            test_case->report(std::cout);
+            test_case->report(std::cout, get_cpu_freq_ghz());
             std::cout << std::endl;
         }
 
@@ -118,6 +127,31 @@ private:
             throw std::system_error{std::make_error_code((std::errc)res), "unable to set thread affinity"};
     }
 };
+
+double test_runner::get_cpu_freq_ghz() {
+    using namespace std::string_view_literals;
+
+    std::ifstream ifs{"/proc/cpuinfo"};
+    std::string line;
+    double res = 0.0;
+
+    while (getline(ifs, line)) {
+        transform(line.begin(), line.end(), line.begin(), [](auto c){ return std::tolower(c, std::locale()); });
+        if (auto p = line.find("cpu mhz"sv); p != std::string::npos) {
+            if (p = line.find(":"sv, p); p != std::string::npos) {
+                std::istringstream is{line.substr(p + 1)};
+                is >> res;
+                if (is.bad() || is.fail())
+                    res = 0.0;
+                else
+                    res /= 1000.0;
+            }
+            break;
+        }
+    }
+
+    return res;
+}
 
 int usage(const char* basename) {
     if (auto p = std::strrchr(basename, '/'))

@@ -30,7 +30,7 @@ struct test_case_iface {
     // the main dance of the second worker
     virtual void another_work() noexcept = 0;
     // say what you want to say at the end
-    virtual void report(std::ostream& os) = 0;
+    virtual void report(std::ostream& os, double cpufreq_ghz) = 0;
 };
 
 /*
@@ -59,7 +59,7 @@ protected:
 
     void one_work() noexcept override;
     void another_work() noexcept override;
-    void report(std::ostream& os) override;
+    void report(std::ostream& os, double cpufreq_ghz) override;
 };
 
 /*
@@ -100,6 +100,6 @@ class ping_pong_test : public test_case_iface {
     void another_prepare() override {};
     void one_work() noexcept override;
     void another_work() noexcept override;
-    void report(std::ostream& os) override;
+    void report(std::ostream& os, double cpufreq_ghz) override;
 };
 
